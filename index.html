@@ -73,13 +73,13 @@
   </div>
   
   <script>
-    window.currentLoggedPin = "";
-  const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyPfl2pxH8jcNeech-aavYIQTmRAMR8a_pZL0GtCwoOlST8gPpOwGAkpA6fZ8pUvaC3/exec";
+      const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyPfl2pxH8jcNeech-aavYIQTmRAMR8a_pZL0GtCwoOlST8gPpOwGAkpA6fZ8pUvaC3/exec";
 
-    // โหลดข้อมูล Dropdown อัตโนมัติทันทีที่เปิดหน้าเว็บ
+    // โหลดข้อมูล Dropdown อัตโนมัติทันทีที่เปิดหน้าเว็บ (เวอร์ชันเชื่อมต่อผ่าน Cloudflare / Fetch API)
     function initPage() {
-      google.script.run
-        .withSuccessHandler(function(data) {
+      fetch(`${APPS_SCRIPT_URL}?action=getDropdownOptions`)
+        .then(response => response.json())
+        .then(data => {
           let monthSelect = document.getElementById('selectMonth');
           let empSelect = document.getElementById('selectEmployee');
           
@@ -101,11 +101,11 @@
             });
           }
         })
-        .withFailureHandler(function(err) {
+        .catch(err => {
           console.error("โหลด Dropdown ล้มเหลว: " + err.message);
-        })
-        .getDropdownOptions();
+        });
     }
+
 
     function previewData() {
       let month = document.getElementById('selectMonth').value;
