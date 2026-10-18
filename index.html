@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <style>
+    body { font-family: 'Sarabun', sans-serif; background: #faf8f5; color: #333; padding: 18px; margin: 0; }
+    h2 { color: #2c3e50; margin-bottom: 10px; font-size: 18px; }
+    .filter-box { background: #fff; padding: 15px 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 20px; display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; }
+    .filter-group { display: flex; flex-direction: column; gap: 5px; }
+    label { font-size: 13px; font-weight: bold; color: #555; }
+    select { padding: 8px 12px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; background: #fff; min-width: 160px; }
+    button { padding: 9px 18px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.1); font-size: 14px; transition: 0.2s; }
+    button:hover { opacity: 0.9; }
+    .btn-show { background: #3498db; color: #fff; }
+    .btn-export { background: #27ae60; color: #fff; }
+    
+    /* สไตล์ตารางแสดงผลตามที่คุณกำหนด */
+    .table-container { background: #fff; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); overflow-x: auto; }
+    table.preview-table { width: 100%; border-collapse: collapse; text-align: left; }
+    table.preview-table th, table.preview-table td { padding: 6px 10px; border-bottom: 1px solid #eee; font-size: 12px; }
+    table.preview-table th { background: #2c3e50; color: #fff; font-weight: 600; white-space: nowrap; }
+    table.preview-table tr:hover { background: #f8f9fa; }
+    .loading { text-align: center; padding: 30px; color: #666; font-size: 13px; }
+    .no-data { text-align: center; padding: 30px; color: #e74c3c; font-size: 13px; }
+  </style>
+</head>
+<body onload="initPage()">
+
+  <h2>📊 ระบบรายงานและตรวจสอบเวลาทำงาน</h2>
+
+  <!-- ส่วนฟิลเตอร์เลือกเงื่อนไข -->
+  <div class="filter-box">
+    <div class="filter-group">
+      <label>ประจำเดือน:</label>
+      <select id="selectMonth">
+        <option value="">กำลังโหลดเดือน...</option>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label>ช่วงวันที่ / วัน:</label>
+      <select id="selectDay">
+        <option value="HALF1">📅 ครึ่งแรก (DAY 1 - 15)</option>
+        <option value="HALF2">📅 ครึ่งหลัง (DAY 16 - 31)</option>
+        <option value="FULL">📅 เต็มเดือน (DAY 1 - 31)</option>
+        <optgroup label="--- หรือเลือกเฉพาะวัน ---">
+          <script>
+            for(let i=1; i<=31; i++) {
+              document.write(`<option value="DAY${i}">DAY ${i}</option>`);
+            }
+          </script>
+        </optgroup>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label>พนักงาน:</label>
+      <select id="selectEmployee">
+        <option value="ALL">👥 ทุกคนในระบบ</option>
+      </select>
+    </div>
+
+    <div style="display: flex; gap: 10px;">
+      <button class="btn-show" onclick="previewData()">👀 แสดงข้อมูล</button>
+      <button class="btn-export" onclick="exportExcel()">📥 Export เป็น Excel</button>
+    </div>
+  </div>
+
+  <!-- พื้นที่แสดงตารางผลลัพธ์ -->
+  <div class="table-container" id="resultContainer">
+    <div class="loading">กรุณากำหนดเงื่อนไขแล้วกดปุ่ม "แสดงข้อมูล"</div>
+  </div>
+
+  <script>
+    // โหลดข้อมูล Dropdown อัตโนมัติทันทีที่เปิดหน้าเว็บ
+    function initPage() {
+      google.script.run
+        .withSuccessHandler(function(data) {
+          let monthSelect = document.getElementById('selectMonth');
+          let empSelect = document.getElementById('selectEmployee');
+          
+          // เติมข้อมูลเดือน
+          monthSelect.innerHTML = "";
+          if (data.months && data.months.length > 0) {
+            data.months.forEach(m => {
+              monthSelect.innerHTML += `<option value="${m.value}">${m.label} (ตารางเวลา${m.value})</option>`;
+            });
+          } else {
+            monthSelect.innerHTML = `<option value="">ไม่พบข้อมูลเดือนในหน้าตั้งค่าไอดี</option>`;
+          }
+          
+          // เติมข้อมูลพนักงาน
+          empSelect.innerHTML = `<option value="ALL">👥 ทุกคนในระบบ</option>`;
+          if (data.employees && data.employees.length > 0) {
+            data.employees.forEach(emp => {
+              empSelect.innerHTML += `<option value="${emp}">${emp}</option>`;
+            });
+          }
+        })
+        .withFailureHandler(function(err) {
+          console.error("โหลด Dropdown ล้มเหลว: " + err.message);
+        })
+        .getDropdownOptions();
+    }
+
+    function previewData() {
+      let month = document.getElementById('selectMonth').value;
+      let day = document.getElementById('selectDay').value;
+      let employee = document.getElementById('selectEmployee').value;
+
+      if (!month) {
+        alert("กรุณาเลือกประจำเดือนก่อนครับ");
+        return;
+      }
+
+      document.getElementById('resultContainer').innerHTML = '<div class="loading">⏳ กำลังดึงข้อมูลจากไฟล์จริง... กรุณารอสักครู่</div>';
+
+      google.script.run
+        .withSuccessHandler(function(dataArray) {
+          renderTable(dataArray);
+        })
+        .withFailureHandler(function(err) {
+          alert("เกิดข้อผิดพลาด: " + err.message);
+          document.getElementById('resultContainer').innerHTML = '<div class="no-data">❌ โหลดข้อมูลไม่สำเร็จ</div>';
+        })
+        .getPreviewData(month, day, employee);
+    }
+
+    function renderTable(data) {
+      if (!data || data.length === 0) {
+        document.getElementById('resultContainer').innerHTML = '<div class="no-data">⚠️ ไม่พบข้อมูลตามเงื่อนไขที่เลือก</div>';
+        return;
+      }
+
+      let html = `<table class="preview-table">
+                    <thead>
+                      <tr>
+                        <th>ชื่อพนักงาน</th>
+                        <th>วันที่</th>
+                        <th>เวลาเข้างาน</th>
+                        <th>เวลาสาย</th>
+                        <th>หักเงินสาย</th>
+                        <th>วันพักร้อน</th>
+                        <th>วันขาด</th>
+                        <th>วันป่วย</th>
+                      </tr>
+                    </thead>
+                    <tbody>`;
+
+      data.forEach(row => {
+        html += `<tr>
+                   <td><b>${row.name || ''}</b></td>
+                   <td>${row.dateStr || ''}</td>
+                   <td>${row.timeIn || '-'}</td>
+                   <td><span style="color: ${row.lateTime ? '#c0392b' : '#27ae60'};">${row.lateTime || '0'}</span></td>
+                   <td><span style="color: #c0392b; font-weight: bold;">${row.fineAmount || '0'}</span></td>
+                   <td>${row.vacationDays || 0} วัน</td>
+                   <td>${row.absentDays || 0} วัน</td>
+                   <td>${row.sickDays || 0} วัน</td>
+                 </tr>`;
+      });
+
+      html += `</tbody></table>`;
+      document.getElementById('resultContainer').innerHTML = html;
+    }
+
+        function exportExcel() {
+      let month = document.getElementById('selectMonth').value;
+      let day = document.getElementById('selectDay').value;
+      let employee = document.getElementById('selectEmployee').value;
+
+      if (!month) {
+        alert("กรุณาเลือกประจำเดือนก่อนครับ");
+        return;
+      }
+
+      // ⏳ ค้นหาปุ่ม Export, ล็อกปุ่มกันกดซ้ำ และเปลี่ยนข้อความเป็นกำลังโหลด
+      let btnExport = document.querySelector('.btn-export');
+      let originalText = btnExport.innerHTML;
+      btnExport.disabled = true;
+      btnExport.innerHTML = '⏳ กำลังสร้างไฟล์ Excel...';
+      btnExport.style.opacity = '0.7';
+
+      google.script.run
+        .withSuccessHandler(function(url) {
+          // 🔄 คืนค่าปุ่มกลับมาเป็นปกติเมื่อทำงานเสร็จ
+          btnExport.disabled = false;
+          btnExport.innerHTML = originalText;
+          btnExport.style.opacity = '1';
+
+          if (url) {
+            let exportUrl = url.replace(/\/edit.*$/, '/export?format=xlsx');
+            let a = document.createElement('a');
+            a.href = exportUrl;
+            a.target = '_blank';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          } else {
+            alert("สร้างไฟล์ Excel ไม่สำเร็จหรือไม่มีข้อมูล");
+          }
+        })
+        .withFailureHandler(function(err) {
+          // ❌ คืนค่าปุ่มกลับมาปกติเมื่อเกิดข้อผิดพลาด
+          btnExport.disabled = false;
+          btnExport.innerHTML = originalText;
+          btnExport.style.opacity = '1';
+
+          alert("Error: " + err.message);
+        })
+        .generateCustomExcelExport(month, day, employee);
+    }
+
+  </script>
+</body>
+</html>
