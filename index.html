@@ -169,7 +169,7 @@
       document.getElementById('resultContainer').innerHTML = html;
     }
 
-        function exportExcel() {
+         function exportExcel() {
       let month = document.getElementById('selectMonth').value;
       let day = document.getElementById('selectDay').value;
       let employee = document.getElementById('selectEmployee').value;
@@ -186,13 +186,16 @@
       btnExport.innerHTML = '⏳ กำลังสร้างไฟล์ Excel...';
       btnExport.style.opacity = '0.7';
 
-      google.script.run
-        .withSuccessHandler(function(url) {
+      // 🔄 เปลี่ยนมาใช้ fetch สำหรับเรียกฟังก์ชัน Export ทาง API ผ่าน Cloudflare
+      fetch(`${APPS_SCRIPT_URL}?action=generateCustomExcelExport&month=${month}&day=${day}&emp=${encodeURIComponent(employee)}`)
+        .then(response => response.json())
+        .then(result => {
           // 🔄 คืนค่าปุ่มกลับมาเป็นปกติเมื่อทำงานเสร็จ
           btnExport.disabled = false;
           btnExport.innerHTML = originalText;
           btnExport.style.opacity = '1';
 
+          let url = result.url;
           if (url) {
             let exportUrl = url.replace(/\/edit.*$/, '/export?format=xlsx');
             let a = document.createElement('a');
@@ -205,16 +208,16 @@
             alert("สร้างไฟล์ Excel ไม่สำเร็จหรือไม่มีข้อมูล");
           }
         })
-        .withFailureHandler(function(err) {
+        .catch(err => {
           // ❌ คืนค่าปุ่มกลับมาปกติเมื่อเกิดข้อผิดพลาด
           btnExport.disabled = false;
           btnExport.innerHTML = originalText;
           btnExport.style.opacity = '1';
 
           alert("Error: " + err.message);
-        })
-        .generateCustomExcelExport(month, day, employee);
+        });
     }
+
 
   </script>
 </body>
