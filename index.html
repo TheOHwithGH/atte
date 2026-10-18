@@ -107,7 +107,7 @@
     }
 
 
-    function previewData() {
+       function previewData() {
       let month = document.getElementById('selectMonth').value;
       let day = document.getElementById('selectDay').value;
       let employee = document.getElementById('selectEmployee').value;
@@ -119,15 +119,16 @@
 
       document.getElementById('resultContainer').innerHTML = '<div class="loading">⏳ กำลังดึงข้อมูลจากไฟล์จริง... กรุณารอสักครู่</div>';
 
-      google.script.run
-        .withSuccessHandler(function(dataArray) {
+      // 🔄 เปลี่ยนมาใช้ fetch เพื่อยิงคำขอไปยัง Google Apps Script Web App URL
+      fetch(`${APPS_SCRIPT_URL}?action=getPreviewData&month=${month}&day=${day}&emp=${encodeURIComponent(employee)}`)
+        .then(response => response.json())
+        .then(dataArray => {
           renderTable(dataArray);
         })
-        .withFailureHandler(function(err) {
+        .catch(err => {
           alert("เกิดข้อผิดพลาด: " + err.message);
           document.getElementById('resultContainer').innerHTML = '<div class="no-data">❌ โหลดข้อมูลไม่สำเร็จ</div>';
-        })
-        .getPreviewData(month, day, employee);
+        });
     }
 
     function renderTable(data) {
